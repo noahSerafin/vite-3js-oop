@@ -2,8 +2,10 @@ import * as T from 'three';
 // eslint-disable-next-line import/no-unresolved
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-import fragment from '../shaders/fragment.glsl';
 import vertex from '../shaders/vertex.glsl';
+import fragment from '../shaders/fragment.glsl';
+import simVertex from '../shaders/simVertex.glsl';
+import simFragment from '../shaders/simFragment.glsl';
 
 const device = {
   width: window.innerWidth,
@@ -40,6 +42,7 @@ export default class Three {
     this.clock = new T.Clock();
 
     this.setLights();
+    this.setupFBO();
     this.setGeometry();
     this.render();
     this.setResize();
@@ -54,7 +57,7 @@ export default class Three {
     this.planeGeometry = new T.PlaneGeometry(1, 1, 128, 128);
     this.planeMaterial = new T.ShaderMaterial({
       side: T.DoubleSide,
-      wireframe: true,
+      //wireframe: true,
       fragmentShader: fragment,
       vertexShader: vertex,
       uniforms: {
@@ -66,13 +69,67 @@ export default class Three {
     this.scene.add(this.planeMesh);
   }
 
+  //Feedback Object
+  getRenderTarget() {
+    const renderTarget = new T.WebGLRenderTarget( this.width, this.height, {
+      minFilter: T.NearestFilter,
+      magFilter: T.NearestFilter,
+      format: T.RGBAFormat,
+      type: T.FloatType,
+    });
+    return renderTarget
+  }
+
+  setupFBO(){
+    this.size = 128
+    this.fbo = this.getRenderTarget()
+    this.fbo1 = this.getRenderTarget()
+    this.fboScene = new T.Scene()
+    this.fboCamera = new T.OrthographicCamera(-1,1,1,-1,-1,1);
+    this.fboCamera.lookAt(0,0,0);
+    let fbgeometry = new T.PlaneGeometry(2,2);
+
+    this.data = new Float32Array(this.size * this.size * 4);
+
+    for (let i = 0; i < this.size; i++) {
+      for (let j = 0; j < this.size; j++) {
+        let index = (i + j * this.size) * 4;
+        let theta = Math.random() * Math.PI * 2
+        let r = 0.5 + 0.5*Math.random()
+        this.data[index + 0] = r*Math.cos(theta);
+        this.data[index + 1] = r*Math.sin(theta);
+        this.data[index + 2] = 1.;
+        this.data[index + 3] = 1.;
+
+      }
+    }
+    this.fboTexture = new T.DataTexture(this.data, this.size, this.size, T.RGBAFormat, T.FloatType);
+    this.fboTexture.magFilter = T.NearestFilter
+    this.fboTexture.minFilter = T.NearestFilter
+    this.fboTexture.needsUpdate = true;
+
+    this.fboMaterial = new T.ShaderMaterial({
+      vertexShader: simVertex,
+      fragmentShader: simFragment,
+      uniforms: {
+        uPositions: {value: null},
+        uTime: {value: 0},
+      }
+    })
+
+    this.fboMesh = new T.Mesh(fbgeometry, this.fboMaterial)
+    this.fboScene.add(this.fboMesh)
+
+  }
+
   render() {
     const elapsedTime = this.clock.getElapsedTime();
 
-    this.planeMesh.rotation.x = 0.2 * elapsedTime;
-    this.planeMesh.rotation.y = 0.1 * elapsedTime;
+    //this.planeMesh.rotation.x = 0.2 * elapsedTime;
+    //this.planeMesh.rotation.y = 0.1 * elapsedTime;
 
-    this.renderer.render(this.scene, this.camera);
+    //this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.fboScene, this.fboCamera);
     requestAnimationFrame(this.render.bind(this));
   }
 
