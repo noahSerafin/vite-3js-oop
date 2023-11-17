@@ -2,7 +2,7 @@ import * as T from 'three';
 // eslint-disable-next-line import/no-unresolved
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-import vertex from '../shaders/vertex.glsl';
+import vertex from '../shaders/vertexParticles.glsl';
 import fragment from '../shaders/fragment.glsl';
 import simVertex from '../shaders/simVertex.glsl';
 import simFragment from '../shaders/simFragment.glsl';
@@ -53,18 +53,38 @@ export default class Three {
     this.scene.add(this.ambientLight);
   }
 
-  setGeometry() {
-    this.planeGeometry = new T.PlaneGeometry(1, 1, 128, 128);
+  setGeometry() {//addObjects
+    
     this.planeMaterial = new T.ShaderMaterial({
       side: T.DoubleSide,
       //wireframe: true,
       fragmentShader: fragment,
       vertexShader: vertex,
       uniforms: {
-        progress: { type: 'f', value: 0 }
+        time: {value: 0},
+        uPositions: {value: null},
+        resolution: {value: new T.Vector4()},
       }
     });
 
+    this.count = this.size**2;
+    let geometry = new T.BufferGeometry()
+    let positions = new Float32Array(this.count * 3)
+    let uv = new Float32Array(this.count * 2)
+    for (let i = 0; i < this.size; i++) {
+      for (let j = 0; j < this.size; j++) {
+        let index = (i + j * this.size);
+        positions[index * 3 + 0] = Math.random();
+        positions[index * 3 + 1] = Math.random();
+        positions[index * 3 + 2] = 0;
+        uv[index * 2 + 0] = i / this.size;
+        uv[index * 2 + 1] = j / this.size;
+      }      
+    }
+    geometry.setAttribute('position', new T.BufferAttribute(positions, 3))
+    geometry.setAttribute('uv', new T.BufferAttribute(uv, 2))
+
+    this.planeGeometry = new T.PlaneGeometry(1, 1, 128, 128);
     this.planeMesh = new T.Mesh(this.planeGeometry, this.planeMaterial);
     this.scene.add(this.planeMesh);
   }
@@ -100,7 +120,6 @@ export default class Three {
         this.data[index + 1] = r*Math.sin(theta);
         this.data[index + 2] = 1.;
         this.data[index + 3] = 1.;
-
       }
     }
     this.fboTexture = new T.DataTexture(this.data, this.size, this.size, T.RGBAFormat, T.FloatType);
@@ -109,12 +128,12 @@ export default class Three {
     this.fboTexture.needsUpdate = true;
 
     this.fboMaterial = new T.ShaderMaterial({
+      uniforms: {
+        uPositions: {value: this.fboTexture},
+        time: {value: 0},
+      },
       vertexShader: simVertex,
       fragmentShader: simFragment,
-      uniforms: {
-        uPositions: {value: null},
-        uTime: {value: 0},
-      }
     })
 
     this.fboMesh = new T.Mesh(fbgeometry, this.fboMaterial)
@@ -128,9 +147,10 @@ export default class Three {
     //this.planeMesh.rotation.x = 0.2 * elapsedTime;
     //this.planeMesh.rotation.y = 0.1 * elapsedTime;
 
-    //this.renderer.render(this.scene, this.camera);
-    this.renderer.render(this.fboScene, this.fboCamera);
-    requestAnimationFrame(this.render.bind(this));
+    this.renderer.render(this.scene, this.camera);
+    
+    //this.renderer.render(this.fboScene, this.fboCamera);
+    //requestAnimationFrame(this.render.bind(this));
   }
 
   setResize() {
