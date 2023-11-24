@@ -20,10 +20,10 @@ export default class Three {
     this.scene = new T.Scene();
 
     this.camera = new T.PerspectiveCamera(
-      75,
+      70,
       device.width / device.height,
-      0.1,
-      100
+      0.01,
+      1000
     );
     this.camera.position.set(0, 0, 2);
     this.scene.add(this.camera);
@@ -39,9 +39,9 @@ export default class Three {
 
     this.controls = new OrbitControls(this.camera, this.canvas);
 
-    this.clock = new T.Clock();
+    this.isPlaying = true;
 
-    this.setLights();
+    //this.setLights();
     this.setupFBO();
     this.setGeometry();
     this.render();
@@ -53,40 +53,8 @@ export default class Three {
     this.scene.add(this.ambientLight);
   }
 
-  setGeometry() {//addObjects
-    
-    this.planeMaterial = new T.ShaderMaterial({
-      side: T.DoubleSide,
-      //wireframe: true,
-      fragmentShader: fragment,
-      vertexShader: vertex,
-      uniforms: {
-        time: {value: 0},
-        uPositions: {value: null},
-        resolution: {value: new T.Vector4()},
-      }
-    });
-
-    this.count = this.size**2;
-    let geometry = new T.BufferGeometry()
-    let positions = new Float32Array(this.count * 3)
-    let uv = new Float32Array(this.count * 2)
-    for (let i = 0; i < this.size; i++) {
-      for (let j = 0; j < this.size; j++) {
-        let index = (i + j * this.size);
-        positions[index * 3 + 0] = Math.random();
-        positions[index * 3 + 1] = Math.random();
-        positions[index * 3 + 2] = 0;
-        uv[index * 2 + 0] = i / this.size;
-        uv[index * 2 + 1] = j / this.size;
-      }      
-    }
-    geometry.setAttribute('position', new T.BufferAttribute(positions, 3))
-    geometry.setAttribute('uv', new T.BufferAttribute(uv, 2))
-
-    this.planeGeometry = new T.PlaneGeometry(1, 1, 128, 128);
-    this.planeMesh = new T.Mesh(this.planeGeometry, this.planeMaterial);
-    this.scene.add(this.planeMesh);
+  setResize() {
+    window.addEventListener('resize', this.onResize.bind(this));
   }
 
   //Feedback Object
@@ -104,10 +72,12 @@ export default class Three {
     this.size = 128
     this.fbo = this.getRenderTarget()
     this.fbo1 = this.getRenderTarget()
+
     this.fboScene = new T.Scene()
     this.fboCamera = new T.OrthographicCamera(-1,1,1,-1,-1,1);
+    this.fboCamera.position.set(0,0,0.5);
     this.fboCamera.lookAt(0,0,0);
-    let fbgeometry = new T.PlaneGeometry(2,2);
+    let geometry = new T.PlaneGeometry(2,2);//geometry
 
     this.data = new Float32Array(this.size * this.size * 4);
 
@@ -136,25 +106,86 @@ export default class Three {
       fragmentShader: simFragment,
     })
 
-    this.fboMesh = new T.Mesh(fbgeometry, this.fboMaterial)
+    this.fboMesh = new T.Mesh(geometry, this.fboMaterial)
     this.fboScene.add(this.fboMesh)
 
+    //not needed?
+    this.renderer.setRenderTarget(this.fbo);
+    this.renderer.render(this.fboScene, this.fboCamera);
+    this.renderer.setRenderTarget(this.fbo1);
+    this.renderer.render(this.fboScene, this.fboCamera);
+    //
+
+  }
+
+  /*resize() {
+    this.width = this.container.offsetWidth;
+    this.height = this.container.offsetHeight;
+    this.renderer.setSize(this.width, this,this.height);
+    this.camera.espect = this.width / this.height;
+    this.camera.updateProjectionMatrix();
+  }*/
+
+  setGeometry() {//addObjects
+    
+    this.material = new T.ShaderMaterial({
+      extensions: {
+        derivatives: "extension GL_OES_standard_derivaties : enable"
+      },
+      side: T.DoubleSide,
+      uniforms: {
+        time: {value: 0},
+        uPositions: {value: null},
+        resolution: {value: new T.Vector4()},
+      },
+      //wireframe: true,
+      vertexShader: vertex,//check
+      fragmentShader: fragment//check
+    });
+
+    this.count = this.size**2;
+    let geometry = new T.BufferGeometry()
+    let positions = new Float32Array(this.count * 3)
+    let uv = new Float32Array(this.count * 2)
+    for (let i = 0; i < this.size; i++) {
+      for (let j = 0; j < this.size; j++) {
+        let index = (i + j * this.size);
+        positions[index * 3 + 0] = Math.random();
+        positions[index * 3 + 1] = Math.random();
+        positions[index * 3 + 2] = 0;
+        uv[index * 2 + 0] = i / this.size;
+        uv[index * 2 + 1] = j / this.size;
+      }      
+    }
+    geometry.setAttribute('position', new T.BufferAttribute(positions, 3))
+    geometry.setAttribute('uv', new T.BufferAttribute(uv, 2))
+
+    this.material.uniforms.uPositions.value = this.fboTexture;
+    this.points = new T.Points(geometry, this.material);//this.material
+    this.points.size = 0.1;
+    this.scene.add(this.points);
   }
 
   render() {
-    const elapsedTime = this.clock.getElapsedTime();
+    //if (!this.isPlaying) return;
+    this.time += 0.05;
+    this.material.uniforms.time.value = this.time;
+    this.fboMaterial.uniforms.time.value = this.time;
+    requestAnimationFrame(this.render.bind(this));
 
-    //this.planeMesh.rotation.x = 0.2 * elapsedTime;
-    //this.planeMesh.rotation.y = 0.1 * elapsedTime;
-
-    this.renderer.render(this.scene, this.camera);
+    this.fboMaterial.uniforms.uPositions.value = this.fbo1.texture;
+    this.material.uniforms.uPositions.value = this.fbo.texture;
     
+    this.renderer.setRenderTarget(this.fbo);
+    this.renderer.render(this.fboScene, this.fboCamera);
+    this.renderer.setRenderTarget(null);
+    this.renderer.render(this.scene, this.camera);
     //this.renderer.render(this.fboScene, this.fboCamera);
-    //requestAnimationFrame(this.render.bind(this));
-  }
 
-  setResize() {
-    window.addEventListener('resize', this.onResize.bind(this));
+    //swap render targets
+    let temp = this.fbo;
+    this.fbo = this.fbo1;
+    this.fbo = temp;
   }
 
   onResize() {
