@@ -41,9 +41,14 @@ export default class Three {
 
     this.controls = new OrbitControls(this.camera, this.canvas);
 
+    this.raycaster = new T.Raycaster();
+
+    this.pointer = new T.Vector2();
+
     this.isPlaying = true;
 
     this.setupFBO();
+    this.setupEvents();
     this.addObjects();
     this.render();
     this.setResize();
@@ -51,6 +56,30 @@ export default class Three {
 
   setResize() {
     window.addEventListener('resize', this.onResize.bind(this));
+  }
+
+  setupEvents() {
+    this.dummy=new T.Mesh(
+      new T.PlaneGeometry(100,100),
+      new T.MeshBasicMaterial()
+    )
+    /*this.ball=new T.Mesh(
+      new T.SphereGeometry(0.1,12,12),
+      new T.MeshBasicMaterial()
+    )
+    this.scene.add(this.ball);
+    */
+    document.addEventListener('pointermove', (e)=> {
+      this.pointer.x = ( e.clientX / window.innerWidth) * 2 -1;
+      this.pointer.y = -( e.clientY / window.innerHeight) * 2 +1;
+      this.raycaster.setFromCamera(this.pointer, this.camera);
+      let intersects = this.raycaster.intersectObject(this.dummy);
+      if(intersects.length > 0){
+        let{x,y} = intersects[0].point;
+        this.fboMaterial.uniforms.uMouse.value = new T.Vector2(x,y);
+        //this.ball.position.set(x,y,0)
+      }
+    })
   }
 
   //Feedback Object
@@ -98,7 +127,8 @@ export default class Three {
       uniforms: {
         uPositions: {value: this.fboTexture},
         time: {value: 0},
-        uInfo: {value: null}
+        uInfo: {value: null},
+        uMouse: {value: new T.Vector2(0,0)},
       },
       vertexShader: simVertex,
       fragmentShader: simFragment,
@@ -181,6 +211,7 @@ export default class Three {
 
     this.material.uniforms.uPositions.value = this.fboTexture;
     this.points = new T.Points(geometry, this.material);//this.material
+    this.points.position.set(0,0,-1)
     this.points.size = 0.1;
     this.scene.add(this.points);
   }
@@ -209,6 +240,7 @@ export default class Three {
     this.fbo = this.fbo1;
     this.fbo1 = temp;
     //console.log(this.time); 
+   
   }
 
   onResize() {
@@ -221,4 +253,6 @@ export default class Three {
     this.renderer.setSize(device.width, device.height);
     this.renderer.setPixelRatio(Math.min(device.pixelRatio, 2));
   }
+
+  
 }

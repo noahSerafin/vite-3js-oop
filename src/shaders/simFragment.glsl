@@ -2,6 +2,7 @@ uniform float time;
 uniform float progress;
 uniform sampler2D uPositions;
 uniform sampler2D uInfo;
+uniform vec2 uMouse;
 uniform vec4 resolution;
 varying vec2 vUv;
 varying vec3 vPosition;
@@ -118,6 +119,8 @@ void main() {
     vec4 pos = texture2D(uPositions, vUv);
     vec4 info = texture2D(uInfo, vUv);
 
+    vec2 mouse = uMouse;
+
     float radius = length(pos.xy);
     //info.x;
     float circularForce = 5. - smoothstep(0.3,1.4,abs(pos.x-radius));
@@ -132,6 +135,9 @@ void main() {
     pos.xy += (targetPos.xy - pos.xy) * 0.01;
     pos.xy += curl(pos.xyz*2., time*0.1, 0.1).xy * 0.002;
 
+    float dist = length(pos.xy - mouse);
+    vec2 dir = normalize(pos.xy - mouse);
+    pos.xy += dir * 0.1 * smoothstep(0.3,0.0,dist);
     gl_FragColor = pos;//vec4(vUv,0.0,1.);
     gl_FragColor = vec4(pos.xy,1.,1.);
 }
