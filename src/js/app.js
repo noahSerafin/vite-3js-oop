@@ -1,5 +1,7 @@
 import * as T from 'three';
 // eslint-disable-next-line import/no-unresolved
+//let OrbitControls = require("three-orbit-controls")(THREE);
+
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 import vertex from '../shaders/vertexParticles.glsl';
@@ -7,55 +9,60 @@ import fragment from '../shaders/fragment.glsl';
 import simVertex from '../shaders/simVertex.glsl';
 import simFragment from '../shaders/simFragment.glsl';
 
-const device = {
+/*const device = {
   width: window.innerWidth,
   height: window.innerHeight,
   pixelRatio: window.devicePixelRatio
-};
+};*/
 
 export default class Three {
-  constructor(canvas) {
-    this.canvas = canvas;
-
+  constructor(options) {
     this.scene = new T.Scene();
-    this.time = 0;
+    
+    this.container = options.dom;
+    this.width = this.container.offsetwidth;
+    this.height = this.container.offsetheight;
+    this.renderer = new T.WebGLRenderer();
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(this.width, this.height);
+    this.renderer.setClearColor(0x000000, 1);
+    this.container.appendChild(this.renderer.domElement);
 
     this.camera = new T.PerspectiveCamera(
       70,
-      device.width / device.height,
+      this.width / this.height,
       0.01,
       1000
     );
-    this.camera.position.set(0, 0, 3);
-    this.scene.add(this.camera);
+    this.camera.position.set(0, 0, 2);
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.time = 0;
 
-    this.renderer = new T.WebGLRenderer({
-      canvas: this.canvas,
-      alpha: true,
-      antialias: true,
-      preserveDrawingBuffer: true
-    });
-    this.renderer.setSize(device.width, device.height);
-    this.renderer.setPixelRatio(Math.min(device.pixelRatio, 2));
-    this.renderer.setClearColor(0x000000, 1);
-
-    this.controls = new OrbitControls(this.camera, this.canvas);
-
+    //this.scene.add(this.camera);
     this.isPlaying = true;
 
     this.setupFBO();
     this.addObjects();
     this.render();
     this.setResize();
+
   }
 
   setResize() {
-    window.addEventListener('resize', this.onResize.bind(this));
+    window.addEventListener('resize', this.resize.bind(this));
+  }
+
+  resize() {
+    this.width = this.container.offsetWidth;
+    this.height = this.container.offsetHeight;
+    this.renderer.setSize(this.width, this.height);
+    this.camera.aspect = this.width / this.height;
+    this.camera.updateProjectionMatrix();
   }
 
   //Feedback Object
   getRenderTarget() {
-    const renderTarget = new T.WebGLRenderTarget( device.width, device.height, {
+    const renderTarget = new T.WebGLRenderTarget( this.width, this.height, {
       minFilter: T.NearestFilter,
       magFilter: T.NearestFilter,
       format: T.RGBAFormat,
@@ -65,7 +72,7 @@ export default class Three {
   }
 
   setupFBO(){
-    this.size = 256
+    this.size = 128
     this.fbo = this.getRenderTarget()
     this.fbo1 = this.getRenderTarget()
 
@@ -98,31 +105,10 @@ export default class Three {
       uniforms: {
         uPositions: {value: this.fboTexture},
         time: {value: 0},
-        uInfo: {value: null}
       },
       vertexShader: simVertex,
       fragmentShader: simFragment,
     })
-    //
-
-    //randomess
-    this.infoArray = new Float32Array(this.size * this.size * 4);
-
-    for (let i = 0; i < this.size; i++) {
-      for (let j = 0; j < this.size; j++) {
-        let index = (i + j * this.size) * 4;
-        this.infoArray[index + 0] = 0.5 + Math.random();
-        this.infoArray[index + 1] = 0.5 + Math.random();
-        this.infoArray[index + 2] = 1.;
-        this.infoArray[index + 3] = 1.;
-      }
-    }
-    this.info = new T.DataTexture(this.infoArray, this.size, this.size, T.RGBAFormat, T.FloatType);
-    this.info.magFilter = T.NearestFilter
-    this.info.minFilter = T.NearestFilter
-    this.info.needsUpdate = true;
-    this.fboMaterial.uniforms.uInfo.value = this.info;
-    //
 
     this.fboMesh = new T.Mesh(geometry, this.fboMaterial)
     this.fboScene.add(this.fboMesh)
@@ -135,14 +121,6 @@ export default class Three {
     //
 
   }
-
-  /*resize() {
-    this.width = this.container.offsetWidth;
-    this.height = this.container.offsetHeight;
-    this.renderer.setSize(this.width, this,this.height);
-    this.camera.espect = this.width / this.height;
-    this.camera.updateProjectionMatrix();
-  }*/
 
   addObjects() {//addObjects
     
@@ -157,7 +135,6 @@ export default class Three {
         resolution: {value: new T.Vector4()},
       },
       //wireframe: true,
-      transparent: true,
       vertexShader: vertex,//check
       fragmentShader: fragment//check
     });
@@ -195,8 +172,8 @@ export default class Three {
     //this.fboMaterial.uniforms.uPositions.value = this.fbo
     //this.material.uniforms.uPositions.value = this.fbo
 
-    this.fboMaterial.uniforms.uPositions.value = this.fbo1.texture;
-    this.material.uniforms.uPositions.value = this.fbo.texture;
+    //this.fboMaterial.uniforms.uPositions.value = this.fbo1.texture;
+    //this.material.uniforms.uPositions.value = this.fbo.texture;
     
     this.renderer.setRenderTarget(this.fbo);
     this.renderer.render(this.fboScene, this.fboCamera);
@@ -207,18 +184,12 @@ export default class Three {
     //swap render targets
     let temp = this.fbo;
     this.fbo = this.fbo1;
-    this.fbo1 = temp;
+    this.fbo = temp;
     //console.log(this.time); 
   }
 
-  onResize() {
-    device.width = window.innerWidth;
-    device.height = window.innerHeight;
-
-    this.camera.aspect = device.width / device.height;
-    this.camera.updateProjectionMatrix();
-
-    this.renderer.setSize(device.width, device.height);
-    this.renderer.setPixelRatio(Math.min(device.pixelRatio, 2));
-  }
 }
+
+new Three({
+  dom: document.getElementById("container")
+});
